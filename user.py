@@ -1,49 +1,105 @@
 from sys import exit
 from pathlib import Path
+from datetime import datetime
+import json
 
 if __name__ == '__main__':
     print('Este módulo não deve ser executado diretamente. ')
     exit()
 
-import json
-from utils import ask, money_format
+from utils import ask, money_format, validate_num, update_data
+import auth
 
 class DigitalAccount():
     def __init__(self: object, **kwargs):
-       self._user = kwargs['name']
-       self._balance = kwargs['balance']
-       self._statement = kwargs['statement']
-       print(f'Bem vindo, {self._user}!\n')
+       self.name = kwargs['name']
+       self.balance = kwargs['balance']
+       self.statement = kwargs['statement']
+       print(f'Seja bem vindo(a), {self.name.split()[0]}!\n')
 
     def view_balance(self: object) -> None:
         """Exibe o saldo do usuário na tela."""
-        print(f'Saldo: {money_format(self._balance)}\n')
+        print(f'Saldo: {money_format(self.balance)}\n')
 
     def view_statement(self: object) -> None:
         """Exibe o extrato bancário do usuário na tela."""
-        print(self._statement)
+        for operation in self.statement:
+            for key, value in operation.items():
+                print(f'{key}: {value}')
+            print()
 
-    def deposit(self: object) -> None:
+    def statement_append(self: object, transation: str, value: float, destiny: dict = None) -> dict:
+        """Adiciona uma operação ao extrato bancário do usuário. 
+        Caso a operação envolva um segundo usuário, o método retorna um dicionário com as informações do usuário
+        após atualizar o extrato."""
+        statement = {'Tipo': transation, 
+                     'Valor': money_format(value)}
+        
+        if destiny is not None:
+            statement['Origem'], statement['Destinatário'] = self.name, destiny['name']
+        statement['Data'] = datetime.now().strftime("%d/%m/%Y às %H:%M:%S")
+        self.statement.append(statement)
+
+        if destiny is not None:
+            destiny['statement'].append(statement)
+            return destiny
+
+    def deposit(self: object, database: Path, cpf: str) -> None:
         """Adiciona um valor ao saldo do usuário."""
-        value = float(ask('Quanto você deseja depositar? '))
+        value = validate_num('Quanto você deseja depositar? R$')
+        
+        self.balance += value
+        self.statement_append('Depósito', value)
+        update_data(database, cpf, **self.__dict__)
+        print(f'Depósito de {money_format(value)} realizado com sucesso! \n')
 
-    def withdrawal(self: object) -> None:
-        """Retira um valor do saldo do usuário."""
-        value = ask('Quanto você deseja sacar? ')
+    def withdrawal(self: object, database: Path, cpf: str) -> None:
+        """Retira um valor do saldo do usuário caso ele tenha tal valor na conta."""
+        value = validate_num('Quanto você deseja sacar? R$')
+        if value > self.balance:
+            print('Saldo insuficiente. Nenhuma operação foi realizada.\n')
+            return
+        
+        self.balance -= value
+        self.statement_append('Saque', value)
+        update_data(database, cpf, **self.__dict__)
+        print(f'Saque de {money_format(value)} realizado com sucesso!\n')
 
-    def transfer(self: object) -> None:
-        """Manda um valor do saldo do usuário à outra conta."""
-        destiny = ask('Digite o CPF do destinatário: ')
+    def transfer(self: object, database, cpf) -> None:
+        """Manda um valor do saldo do usuário à outra conta, desde que o usuário tenha tal valor disponível."""
+        while True:
+            try:
+                cpf_destiny = ask('Digite o CPF do destinatário: ').replace('.', '').replace('-', '')
+                auth.auth_cpf(cpf_destiny)
+                break
+
+            except auth.InvalidCpfError:
+                print('O CPF que você digitou é inválido. Verifique se escreveu corretamente. \n')
+        
+        if not auth.cpf_find(database, cpf_destiny):
+            print('CPF não encontrado. \n')
+            return
+        
+        with open(database, 'r', encoding='utf8') as file:
+            destiny = json.load(file)[cpf_destiny]
+
+        print(f'Nome: {destiny['name']}\nCPF: {cpf_destiny}\n')
+        value = validate_num('Quanto você deseja transferir? R$')
+
+        if value > self.balance:
+            print('Saldo insuficiente. Nenhuma operação foi feita. \n')
+            return
+        
+        self.balance -= value
+        destiny['balance'] += value
+        destiny = self.statement_append('Transferência', value, destiny)
+        update_data(database, cpf, **self.__dict__)
+        update_data(database, cpf_destiny, **destiny)
+
+        print(f'Transferência de {money_format(value)} realizada com sucesso!\n')
 
     def income(self):
-        pass
-
-    def logout(self: object) -> None:
-        """Chama o método __del__."""
-        del self
-
-    def __del__(self: object) -> None:
-        """Atualiza o banco de dados e deleta o objeto"""
+        """Faz o rendimento diário da conta digital."""
         pass
 
 
@@ -62,11 +118,14 @@ def main(database: Path, cpf: str) -> None:
         option = ask('O que deseja fazer?\n[1]Mostrar saldo |[2]Depositar |[3]Sacar '
         '|[4]Checar extrato |[5]Transferir |[6]Sair\n\t')
         OPTIONS = {'1': lambda: user.view_balance(),
-                   '2': lambda: user.deposit(),
-                   '3': lambda: user.withdrawal(),
+                   '2': lambda: user.deposit(database, cpf),
+                   '3': lambda: user.withdrawal(database, cpf),
                    '4': lambda: user.view_statement(),
-                   '5': lambda: user.transfer(),
-                   '6': lambda: user.logout()}
+                   '5': lambda: user.transfer(database, cpf)}
+        
+        if option == '6':
+            print('Você saiu da sua conta. \n')
+            return
         
         executar = OPTIONS.get(option)
         executar() if executar else print('Opção inválida.')

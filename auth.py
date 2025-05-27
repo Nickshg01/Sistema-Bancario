@@ -82,10 +82,10 @@ def auth_cpf(cpf: str) -> None:
         raise InvalidCpfError
 
 
-def cpf_find(path: Path, cpf: str) -> bool:
+def cpf_find(database: Path, cpf: str) -> bool:
     """Verifica se o CPF já existe no banco de dados."""
     
-    with open(path, 'r', encoding='utf8') as data:
+    with open(database, 'r', encoding='utf8') as data:
         users = json.load(data)
         if cpf in users.keys():
             return True
