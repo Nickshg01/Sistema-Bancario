@@ -95,6 +95,7 @@ class DigitalAccount():
 
         if value <= 0:
             print(f'Não é possível fazer transferências com valores menores que {money_format(0)}.\n')
+            return
 
         if value > self.balance:
             print('Saldo insuficiente. Nenhuma operação foi feita. \n')
