@@ -47,6 +47,9 @@ class DigitalAccount():
     def deposit(self: object, database: Path, cpf: str) -> None:
         """Adiciona um valor ao saldo do usuário."""
         value = validate_num('Quanto você deseja depositar? R$')
+        if value <= 0:
+            print(f'Não é possível fazer depósitos menores que {money_format(0)}.\n')
+            return
         
         self.balance += value
         self.statement_append('Depósito', value)
@@ -56,6 +59,10 @@ class DigitalAccount():
     def withdrawal(self: object, database: Path, cpf: str) -> None:
         """Retira um valor do saldo do usuário caso ele tenha tal valor na conta."""
         value = validate_num('Quanto você deseja sacar? R$')
+        if value <= 0:
+            print(f'Não é possível fazer saques com valores menores do que {money_format(0)}.\n')
+            return 
+        
         if value > self.balance:
             print('Saldo insuficiente. Nenhuma operação foi realizada.\n')
             return
@@ -85,6 +92,9 @@ class DigitalAccount():
 
         print(f'Nome: {destiny['name']}\nCPF: {cpf_destiny}\n')
         value = validate_num('Quanto você deseja transferir? R$')
+
+        if value <= 0:
+            print(f'Não é possível fazer transferências com valores menores que {money_format(0)}.\n')
 
         if value > self.balance:
             print('Saldo insuficiente. Nenhuma operação foi feita. \n')
